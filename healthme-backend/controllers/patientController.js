@@ -1,10 +1,8 @@
-const User = require('../models/User');
 const Symptom = require('../models/Symptom');
 const Appointment = require('../models/Appointment');
 const Message = require('../models/Message');
+const User = require('../models/User');
 const Notification = require('../models/Notification');
-
-// --- SYMPTOMS ---
 
 exports.logSymptom = async (req, res) => {
   try {
@@ -38,30 +36,91 @@ exports.getSymptomHistory = async (req, res) => {
   }
 };
 
-exports.deleteSymptom = async (req, res) => {
+exports.scheduleAppointment = async (req, res) => {
+  const { doctorId, date, reason } = req.body;
+  if (!doctorId || !date || !reason) {
+    return res.status(400).json({ message: 'Doctor, date, and reason are required.' });
+  }
+
   try {
-    const symptomId = req.params.id;
-    const patientId = req.user.id;
-
-    const symptom = await Symptom.findById(symptomId);
-
-    if (!symptom) {
-      return res.status(404).json({ message: 'Symptom log not found.' });
+    const doctor = await User.findOne({ _id: doctorId, role: 'doctor' });
+    if (!doctor) {
+      return res.status(404).json({ message: 'Doctor not found.' });
     }
 
-    if (symptom.patient.toString() !== patientId) {
-      return res.status(403).json({ message: 'User not authorized to delete this log.' });
-    }
-
-    await Symptom.findByIdAndDelete(symptomId);
-    res.json({ message: 'Symptom log deleted successfully.' });
+    const newAppointment = new Appointment({
+      patient: req.user.id,
+      doctor: doctorId,
+      date,
+      reason
+    });
+    await newAppointment.save();
+    await new Notification({
+    recipient: doctorId,
+    message: `New appointment request from a patient.`,
+    type: 'appointment'
+}).save();
+    res.status(201).json({ message: 'Appointment scheduled successfully.', appointment: newAppointment });
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
   }
 };
 
-// --- DOCTORS ---
+exports.getPatientAppointments = async (req, res) => {
+  try {
+    const appointments = await Appointment.find({ patient: req.user.id })
+      .populate('doctor', 'email role')
+      .sort({ date: 'asc' });
+    res.json(appointments);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+};
+
+exports.sendMessage = async (req, res) => {
+  const { doctorId, content } = req.body;
+
+  if (!doctorId || !content) {
+    return res.status(400).json({ message: 'Doctor ID and message content are required.' });
+  }
+
+  try {
+    const doctor = await User.findOne({ _id: doctorId, role: 'doctor' });
+    if (!doctor) {
+      return res.status(404).json({ message: 'Recipient is not a valid doctor.' });
+    }
+
+    const newMessage = new Message({
+      from: req.user.id,
+      to: doctorId,
+      content
+    });
+
+    await newMessage.save();
+    res.status(201).json({ message: 'Message sent successfully.' });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+};
+
+exports.getPatientMessages = async (req, res) => {
+  try {
+    const messages = await Message.find({
+      $or: [{ from: req.user.id }, { to: req.user.id }]
+    })
+    .populate('from', 'email role')
+    .populate('to', 'email role')
+    .sort({ createdAt: 'asc' });
+
+    res.json(messages);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+};
 
 exports.getAvailableDoctors = async (req, res) => {
   try {
@@ -73,94 +132,26 @@ exports.getAvailableDoctors = async (req, res) => {
   }
 };
 
-// --- APPOINTMENTS ---
-
-exports.scheduleAppointment = async (req, res) => {
-  const { doctorId, date, reason } = req.body;
-
-  if (!doctorId || !date || !reason) {
-    return res.status(400).json({ message: 'Please provide doctor, date, and reason.' });
-  }
-
+exports.deleteSymptom = async (req, res) => {
   try {
-    const newAppointment = new Appointment({
-      patient: req.user.id,
-      doctor: doctorId,
-      date,
-      reason
-    });
+    const symptomId = req.params.id;
+    const patientId = req.user.id; // from authMiddleware
 
-    await newAppointment.save();
+    const symptom = await Symptom.findById(symptomId);
 
-    // Notify the doctor
-    await new Notification({
-        recipient: doctorId,
-        message: `New appointment request from a patient.`,
-        type: 'appointment'
-    }).save();
+    if (!symptom) {
+      return res.status(404).json({ message: 'Symptom log not found.' });
+    }
 
-    res.json(newAppointment);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
-  }
-};
+    // Security check: Make sure the logged-in patient owns this log
+    if (symptom.patient.toString() !== patientId) {
+      return res.status(403).json({ message: 'User not authorized to delete this log.' });
+    }
 
-exports.getPatientAppointments = async (req, res) => {
-  try {
-    const appointments = await Appointment.find({ patient: req.user.id })
-      .populate('doctor', 'email')
-      .sort({ date: 1 });
-    res.json(appointments);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
-  }
-};
+    // Find and delete the log
+    await Symptom.findByIdAndDelete(symptomId);
 
-// --- MESSAGES ---
-
-exports.sendMessage = async (req, res) => {
-  const { doctorId, content } = req.body;
-
-  if (!doctorId || !content) {
-    return res.status(400).json({ message: 'Doctor ID and content are required.' });
-  }
-
-  try {
-    const newMessage = new Message({
-      from: req.user.id,
-      to: doctorId,
-      content
-    });
-
-    await newMessage.save();
-
-    // Optional: Notify the doctor
-    await new Notification({
-        recipient: doctorId,
-        message: `New message from a patient.`,
-        type: 'message'
-    }).save();
-
-    res.json(newMessage);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
-  }
-};
-
-exports.getPatientMessages = async (req, res) => {
-  try {
-    const patientId = req.user.id;
-    const messages = await Message.find({
-      $or: [{ from: patientId }, { to: patientId }]
-    })
-    .populate('from', 'email role')
-    .populate('to', 'email role')
-    .sort({ createdAt: 'asc' });
-
-    res.json(messages);
+    res.json({ message: 'Symptom log deleted successfully.' });
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
@@ -180,11 +171,33 @@ exports.deleteMessage = async (req, res) => {
 
     // Security: Only allow deleting messages sent BY the patient
     if (message.from.toString() !== patientId) {
-      return res.status(403).json({ message: 'Unauthorized. You can only delete your own messages.' });
+      return res.status(403).json({ message: 'Unauthorized.' });
     }
 
     await Message.findByIdAndDelete(messageId);
-    res.json({ message: 'Message deleted successfully.' });
+    res.json({ message: 'Message deleted.' });
+exports.cancelAppointment = async (req, res) => {
+  const { appointmentId } = req.params;
+
+  try {
+    const appointment = await Appointment.findById(appointmentId);
+    
+    if (!appointment) {
+      return res.status(404).json({ message: 'Appointment not found.' });
+    }
+
+    if (appointment.patient.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized to cancel this appointment.' });
+    }
+
+    if (appointment.status === 'Cancelled') {
+      return res.status(400).json({ message: 'Appointment is already cancelled.' });
+    }
+
+    appointment.status = 'Cancelled';
+    await appointment.save();
+
+    res.json({ message: 'Appointment cancelled successfully.', appointment });
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
