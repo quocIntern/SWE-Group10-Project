@@ -35,6 +35,9 @@ let chatbotHistory;
 let chatbotForm;
 let chatbotInput;
 let patientChatHistory = [];
+let voiceInputBtn; 
+let recognition;
+let isVoiceMode = false;
 
 // -- Video Chat --
 let joinVideoBtnPatient;
@@ -53,6 +56,7 @@ let notificationDropdown;
 let notificationBadge;
 let notificationList;
 let markAllReadBtn;
+
 
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -100,6 +104,10 @@ document.addEventListener('DOMContentLoaded', () => {
     videoRoomNamePatient = document.getElementById('video-room-name-patient');
     localVideoPatient = document.getElementById('local-video-patient');
     remoteVideoPatient = document.getElementById('remote-video-patient');
+    chatbotHistory = document.getElementById('chatbot-history');
+    chatbotForm = document.getElementById('chatbot-form');
+    chatbotInput = document.getElementById('chatbot-input');
+    voiceInputBtn = document.getElementById('voice-input-btn');
 
     // Appointments
     appointmentListContainer = document.getElementById('appointment-list-container');
@@ -117,6 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupNavigation();
     initializeNavigation();
     setupFormHandlers();
+    setupVoiceAgent();
 
     // Global Click Listeners for dynamic elements
     symptomHistoryElement?.addEventListener('click', handleHistoryContainerClick);
@@ -618,13 +627,29 @@ async function handleChatbotSubmit(e) {
             body: JSON.stringify({ prompt, history: patientChatHistory })
         });
         const data = await response.json();
+        
         if (response.ok) {
             appendChatMessage(data.reply, 'bot');
             patientChatHistory.push({ role: 'assistant', content: data.reply });
+
+            // --- NEW: Speak the response if using voice ---
+            if (isVoiceMode) {
+                const utterance = new SpeechSynthesisUtterance(data.reply);
+                // Optional: Choose a specific voice if available
+                // const voices = window.speechSynthesis.getVoices();
+                // utterance.voice = voices.find(v => v.name.includes('Google US English')) || voices[0];
+                window.speechSynthesis.speak(utterance);
+                isVoiceMode = false; // Reset for next interaction
+            }
+            // ----------------------------------------------
         } else {
             appendChatMessage('Error connecting.', 'bot error');
         }
-    } catch (e) { appendChatMessage('Error connecting.', 'bot error'); }
+    } catch (e) { 
+        console.error(e);
+        appendChatMessage('Error connecting.', 'bot error'); 
+        isVoiceMode = false;
+    }
     chatbotInput.disabled = false;
     chatbotInput.focus();
 }
@@ -831,4 +856,58 @@ async function markOneRead(id) {
     } catch (error) {
         console.error(error);
     }
+}
+
+function setupVoiceAgent() {
+    // Check browser support
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    
+    if (!SpeechRecognition) {
+        console.warn("Voice API not supported in this browser.");
+        if (voiceInputBtn) {
+            voiceInputBtn.disabled = true;
+            voiceInputBtn.title = "Voice not supported in this browser";
+        }
+        return;
+    }
+
+    recognition = new SpeechRecognition();
+    recognition.continuous = false; // Stop after one sentence
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+
+    // Handle Mic Button Click
+    voiceInputBtn?.addEventListener('click', () => {
+        if (voiceInputBtn.classList.contains('listening')) {
+            recognition.stop();
+        } else {
+            recognition.start();
+        }
+    });
+
+    // Events
+    recognition.onstart = () => {
+        voiceInputBtn.classList.add('listening');
+        chatbotInput.placeholder = "Listening...";
+        isVoiceMode = true; // Flag to enable TTS response
+    };
+
+    recognition.onend = () => {
+        voiceInputBtn.classList.remove('listening');
+        chatbotInput.placeholder = "Type or speak your message...";
+    };
+
+    recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        chatbotInput.value = transcript;
+        // Auto-submit the form for a seamless "Assistant" feel
+        // We dispatch a submit event so handleChatbotSubmit runs
+        chatbotForm.dispatchEvent(new Event('submit')); 
+    };
+
+    recognition.onerror = (event) => {
+        console.error("Voice error:", event.error);
+        voiceInputBtn.classList.remove('listening');
+        chatbotInput.placeholder = "Error. Please type.";
+    };
 }

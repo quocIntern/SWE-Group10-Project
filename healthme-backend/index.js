@@ -26,6 +26,8 @@ const insuranceRoutes = require('./routes/insurance');
 
 const notificationRoutes = require('./routes/notification');
 
+const adminRoutes = require('./routes/admin');
+
 app.use('/api/auth', authRoutes);
 app.use('/api/patient', patientRoutes);
 app.use('/api/doctor', doctorRoutes);
@@ -33,7 +35,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/video', videoRoutes);
 app.use('/api/insurance', insuranceRoutes);
 app.use('/api/notifications', notificationRoutes);
-
+app.use('/api/admin', adminRoutes);
 
 const __dirnameResolved = path.resolve();
 
