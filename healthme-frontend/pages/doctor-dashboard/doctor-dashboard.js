@@ -316,7 +316,7 @@ async function fetchPatientInsurance(patientId) {
 
 async function fetchPatientSymptoms(patientId) {
     const token = localStorage.getItem('token');
-    const historyList = document.getElementById('patient-symptoms');
+    const historyList = document.getElementById('patient-symptoms-list');
     historyList.innerHTML = '<p class="loading">Loading symptoms...</p>';
     try {
         const response = await fetch(`http://localhost:3000/api/doctor/patients/${patientId}/symptoms`, {
@@ -335,7 +335,7 @@ async function fetchPatientSymptoms(patientId) {
 
 
 function displayPatientSymptoms(symptoms) {
-    const historyList = document.getElementById('patient-symptoms');
+    const historyList = document.getElementById('patient-symptoms-list');
     historyList.innerHTML = '';
     if (!symptoms || symptoms.length === 0) {
         historyList.innerHTML = '<p class="loading">No symptom history available</p>';
@@ -475,7 +475,7 @@ async function handleReplySubmit(e) {
     }
 
     try {
-        const response = await fetch('http://localhost:3000/api/doctor/messages', {
+        const response = await fetch('http://localhost:3000/api/doctor/reply', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

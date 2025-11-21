@@ -11,9 +11,6 @@ let logoutButton;
 let navLinks;
 let sections;
 
-// -- Appointments --
-let appointmentsHistoryContainer;
-
 // -- Message Viewer --
 let messageHistoryContainer;
 let messageMessage;
@@ -89,9 +86,6 @@ document.addEventListener('DOMContentLoaded', () => {
     aiSymptomsInputPatient = document.getElementById('symptoms-input-patient');
     aiResultPatient = document.getElementById('ai-result-patient');
 
-    // Appointments History
-    appointmentsHistoryContainer = document.getElementById('appointments-history-container');
-
     // Find a Doctor
     doctorListContainer = document.getElementById('doctor-list-container');
 
@@ -162,20 +156,6 @@ function showSection(sectionId) {
     if (sectionId === 'insurance') fetchInsurance();
     if (sectionId === 'appointments') fetchPatientAppointments();
     if (sectionId === 'find-doctor') fetchAndDisplayDoctors();
-    
-    // Fetch data for the section that is being shown
-    if (sectionId === 'symptom-history') {
-        fetchSymptomHistory();
-    }
-    if (sectionId === 'appointments') {
-        fetchPatientAppointments();
-    }
-    if (sectionId === 'messages') {
-        fetchPatientMessages();
-    }
-    if (sectionId === 'find-doctor') {
-        fetchAndDisplayDoctors();
-    }
     if (sectionId === 'chatbot') {
         patientChatHistory = [];
         chatbotHistory.innerHTML = '';
@@ -454,7 +434,6 @@ async function handleAppointmentSubmit(e) {
             showMessage(messageDiv, 'Scheduled!', 'success');
             appointmentForm.reset();
             fetchPatientAppointments();
-            setTimeout(() => fetchPatientAppointments(), 800);
         } else {
             showMessage(messageDiv, 'Failed', 'error');
         }
@@ -512,46 +491,6 @@ async function fetchPatientAppointments() {
             });
         }
     } catch (e) { appointmentListContainer.innerHTML = '<p class="loading error">Error loading appointments.</p>'; }
-}
-
-async function fetchPatientAppointments() {
-    const token = localStorage.getItem('token');
-    appointmentsHistoryContainer.innerHTML = '<p class="loading">Loading your appointments...</p>';
-    
-    try {
-        const response = await fetch('http://localhost:3000/api/patient/appointments', {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!response.ok) throw new Error('Could not load appointments');
-        
-        const appointments = await response.json();
-        appointmentsHistoryContainer.innerHTML = '';
-        if (appointments.length === 0) {
-            appointmentsHistoryContainer.innerHTML = '<p class="loading">No appointments scheduled yet.</p>';
-            return;
-        }
-        
-        appointments.forEach(appt => {
-            const item = document.createElement('div');
-            item.className = 'appointment-item';
-            
-            const apptDate = new Date(appt.date);
-            const date = apptDate.toLocaleString('en-US', {
-                dateStyle: 'medium',
-                timeStyle: 'short'
-            });
-            
-            item.innerHTML = `
-                <div class="appointment-doctor"><strong>Doctor:</strong> ${appt.doctor.email}</div>
-                <div class="appointment-date"><strong>Date:</strong> ${date}</div>
-                <div class="appointment-reason"><strong>Reason:</strong> ${appt.reason}</div>
-                <div class="appointment-status"><strong>Status:</strong> ${appt.status}</div>
-            `;
-            appointmentsHistoryContainer.appendChild(item);
-        });
-    } catch (error) {
-        appointmentsHistoryContainer.innerHTML = `<p class="loading error">${error.message}</p>`;
-    }
 }
 
 // --- Messaging ---

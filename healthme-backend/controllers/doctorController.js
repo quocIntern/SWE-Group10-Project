@@ -105,30 +105,4 @@ exports.getPatientInsurance = async (req, res) => {
         console.error(err.message);
         res.status(500).send('Server Error');
     }
-exports.cancelAppointment = async (req, res) => {
-  const { appointmentId } = req.params;
-
-  try {
-    const appointment = await Appointment.findById(appointmentId);
-    
-    if (!appointment) {
-      return res.status(404).json({ message: 'Appointment not found.' });
-    }
-
-    if (appointment.doctor.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'Not authorized to cancel this appointment.' });
-    }
-
-    if (appointment.status === 'Cancelled') {
-      return res.status(400).json({ message: 'Appointment is already cancelled.' });
-    }
-
-    appointment.status = 'Cancelled';
-    await appointment.save();
-
-    res.json({ message: 'Appointment cancelled successfully.', appointment });
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
-  }
 };

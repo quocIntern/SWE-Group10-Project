@@ -141,3 +141,6 @@ AI
 
     POST /api/ai/chat: Send a prompt and conversation history to the AI ChatBot.
 
+Video
+
+    POST /api/video/token: Get a Twilio video access token for a specific room.

@@ -12,7 +12,6 @@ router.delete('/symptoms/:id', authMiddleware, patientController.deleteSymptom);
 
 router.post('/appointments', [authMiddleware, isPatient], patientController.scheduleAppointment);
 router.get('/appointments', [authMiddleware, isPatient], patientController.getPatientAppointments);
-router.put('/appointments/:appointmentId/cancel', [authMiddleware, isPatient], patientController.cancelAppointment);
 
 router.post('/messages', [authMiddleware, isPatient], patientController.sendMessage);
 router.get('/messages', [authMiddleware, isPatient], patientController.getPatientMessages);
