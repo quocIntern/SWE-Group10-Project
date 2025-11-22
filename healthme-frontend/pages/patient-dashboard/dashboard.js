@@ -876,6 +876,8 @@ function setupVoiceAgent() {
     recognition.lang = 'en-US';
     recognition.interimResults = false;
 
+    let didReceiveResult = false; // Track if we actually got input
+
     // Handle Mic Button Click
     voiceInputBtn?.addEventListener('click', () => {
         if (voiceInputBtn.classList.contains('listening')) {
@@ -889,19 +891,25 @@ function setupVoiceAgent() {
     recognition.onstart = () => {
         voiceInputBtn.classList.add('listening');
         chatbotInput.placeholder = "Listening...";
-        isVoiceMode = true; // Flag to enable TTS response
+        isVoiceMode = true; // Enable flag tentatively
+        didReceiveResult = false; // Reset tracker
     };
 
     recognition.onend = () => {
         voiceInputBtn.classList.remove('listening');
         chatbotInput.placeholder = "Type or speak your message...";
+        
+        if (!didReceiveResult) {
+            isVoiceMode = false;
+        }
     };
 
     recognition.onresult = (event) => {
         const transcript = event.results[0][0].transcript;
         chatbotInput.value = transcript;
+        didReceiveResult = true; // Mark success
+        
         // Auto-submit the form for a seamless "Assistant" feel
-        // We dispatch a submit event so handleChatbotSubmit runs
         chatbotForm.dispatchEvent(new Event('submit')); 
     };
 
@@ -909,5 +917,8 @@ function setupVoiceAgent() {
         console.error("Voice error:", event.error);
         voiceInputBtn.classList.remove('listening');
         chatbotInput.placeholder = "Error. Please type.";
+        
+        // FIX: Disable voice mode on error
+        isVoiceMode = false;
     };
 }
