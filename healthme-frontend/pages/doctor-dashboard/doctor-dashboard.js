@@ -552,39 +552,56 @@ async function joinVideoRoom() {
         const data = await response.json();
         if (!response.ok) throw new Error(data.message);
 
+        // 1. Create Local Tracks (Audio + Video) explicitly
+        const localTracks = await Twilio.Video.createLocalTracks({
+            audio: true,
+            video: { width: 640 }
+        });
+
+        // 2. Display Local Video
+        const videoTrack = localTracks.find(track => track.kind === 'video');
+        localVideoDoctor.innerHTML = ''; 
+        localVideoDoctor.appendChild(videoTrack.attach());
+
+        // 3. Connect to Room with existing tracks
         const room = await Twilio.Video.connect(data.token, {
-            name: roomName
+            name: roomName,
+            tracks: localTracks
         });
         activeRoom = room;
 
-        const localTrack = await Twilio.Video.createLocalVideoTrack();
-        localVideoDoctor.innerHTML = ''; // Clear label
-        localVideoDoctor.appendChild(localTrack.attach());
+        // 4. Handle Remote Participants
+        const handleTrack = (track) => {
+            // Remove placeholder label if present
+            const label = remoteVideoDoctor.querySelector('.video-label');
+            if (label) label.remove();
+            remoteVideoDoctor.appendChild(track.attach());
+        };
 
-        room.participants.forEach(participant => {
-            participant.on('trackSubscribed', track => {
-                remoteVideoDoctor.innerHTML = ''; // Clear label
-                remoteVideoDoctor.appendChild(track.attach());
+        room.participants.forEach(p => {
+            p.tracks.forEach(publication => {
+                if (publication.track) handleTrack(publication.track);
             });
+            p.on('trackSubscribed', handleTrack);
         });
 
-        room.on('participantConnected', participant => {
-            participant.on('trackSubscribed', track => {
-                remoteVideoDoctor.innerHTML = ''; // Clear label
-                remoteVideoDoctor.appendChild(track.attach());
-            });
+        room.on('participantConnected', p => {
+            p.on('trackSubscribed', handleTrack);
         });
         
-        room.on('participantDisconnected', participant => {
-            participant.tracks.forEach(publication => {
-                const attachedElements = publication.track.detach();
-                attachedElements.forEach(element => element.remove());
+        room.on('participantDisconnected', p => {
+            p.tracks.forEach(pub => {
+                if (pub.track) {
+                    pub.track.detach().forEach(el => el.remove());
+                }
             });
             remoteVideoDoctor.innerHTML = '<div class="video-label">Patient\'s Video</div>';
         });
 
         room.on('disconnected', () => {
-            localTrack.stop();
+            // Stop all local tracks
+            localTracks.forEach(track => track.stop());
+
             localVideoDoctor.innerHTML = '<div class="video-label">Your Video</div>';
             remoteVideoDoctor.innerHTML = '<div class="video-label">Patient\'s Video</div>';
             activeRoom = null;
