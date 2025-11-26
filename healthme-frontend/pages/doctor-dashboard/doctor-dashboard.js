@@ -475,7 +475,7 @@ async function handleReplySubmit(e) {
     }
 
     try {
-        const response = await fetch('http://localhost:3000/api/doctor/reply', {
+        const response = await fetch('http://localhost:3000/api/doctor/messages', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
